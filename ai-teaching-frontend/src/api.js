@@ -9,9 +9,14 @@ class APIService {
   // Helper method for making requests
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+
+    // Get token from localStorage
+    const token = localStorage.getItem('access_token');
+
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
@@ -19,16 +24,61 @@ class APIService {
 
     try {
       const response = await fetch(url, config);
-      
+
+      // Handle token expiration
+      if (response.status === 401) {
+        // Try to refresh token
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          // Retry request with new token
+          const newToken = localStorage.getItem('access_token');
+          config.headers['Authorization'] = `Bearer ${newToken}`;
+          const retryResponse = await fetch(url, config);
+
+          if (!retryResponse.ok) {
+            throw new Error(`HTTP error! status: ${retryResponse.status}`);
+          }
+          return await retryResponse.json();
+        } else {
+          // Redirect to login
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          throw new Error('Session expired. Please login again.');
+        }
+      }
+
       if (!response.ok) {
         const error = await response.text();
         throw new Error(error || `HTTP error! status: ${response.status}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
+    }
+  }
+
+  // Token refresh method
+  async refreshToken() {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!refreshToken) return false;
+
+    try {
+      const response = await fetch(`${this.baseURL}/api/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('access_token', data.access);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
   }
 
@@ -155,9 +205,10 @@ class APIService {
     });
   }
 
-  async logout() {
+  async logout(refreshToken) {
     return this.request('/api/auth/logout/', {
       method: 'POST',
+      body: JSON.stringify({ refresh: refreshToken }),
     });
   }
 

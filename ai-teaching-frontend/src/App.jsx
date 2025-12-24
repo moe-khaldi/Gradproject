@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Upload, BookOpen, MessageSquare, FileText, Brain, Moon, Sun, Menu, X, ChevronRight, Home, Settings, User, LogOut, Check, AlertCircle, Sparkles, Code, Database, Lightbulb, Target, FileQuestion, BarChart3, Loader } from 'lucide-react';
 import api from "./api";
+import { useAuth } from './AuthContext';
+import LoginPage from './LoginPage';
 
 // Design System Constants
 const COLORS = {
@@ -42,9 +44,10 @@ const COLORS = {
 
 // Main App Component
 export default function AITeachingSystem() {
+  const { user, logout: authLogout, isAuthenticated } = useAuth();
+  const [showLoginPage, setShowLoginPage] = useState(false);
   const [theme, setTheme] = useState('light');
   const [language, setLanguage] = useState('en');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPage, setCurrentPage] = useState('home');
   const [currentSubject, setCurrentSubject] = useState('oop');
@@ -398,7 +401,7 @@ export default function AITeachingSystem() {
       {/* Navigation Items */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0' }}>
         <NavItem icon={Home} label={t.appName.split(' ').slice(0, 2).join(' ')} onClick={() => setCurrentPage('home')} active={currentPage === 'home'} />
-        <NavItem icon={MessageSquare} label={t.chatTutor} onClick={() => setCurrentPage('general-chat')} active={currentPage === 'general-chat'} />
+        <NavItem icon={MessageSquare} label={t.chatTutor} onClick={() => setCurrentPage('chat')} active={currentPage === 'chat'} />
         <NavItem icon={FileQuestion} label={t.quizGenerator} onClick={() => setCurrentPage('quiz')} active={currentPage === 'quiz'} />
         <NavItem icon={Upload} label={t.uploadExplain} onClick={() => setCurrentPage('upload')} active={currentPage === 'upload'} />
         
@@ -441,7 +444,7 @@ export default function AITeachingSystem() {
           </>
         )}
 
-        {isLoggedIn && (
+        {isAuthenticated && (
           <>
             <div style={{ padding: '20px 20px 8px', fontSize: '11px', fontWeight: 600, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {t.savedSessions}
@@ -473,7 +476,7 @@ export default function AITeachingSystem() {
 
       {/* User Section */}
       <div style={{ padding: '16px', borderTop: `1px solid ${colors.border}` }}>
-        {isLoggedIn ? (
+        {isAuthenticated ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '36px',
@@ -487,14 +490,17 @@ export default function AITeachingSystem() {
               fontSize: '14px',
               fontWeight: 600
             }}>
-              AS
+              {user?.first_name?.[0]}{user?.last_name?.[0]}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>Ahmad Student</div>
-              <div style={{ fontSize: '12px', color: colors.textSecondary }}>ahmad@just.edu.jo</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>{user?.first_name} {user?.last_name}</div>
+              <div style={{ fontSize: '12px', color: colors.textSecondary }}>{user?.email}</div>
             </div>
             <button
-              onClick={() => setIsLoggedIn(false)}
+              onClick={() => {
+                authLogout();
+                setShowLoginPage(false);
+              }}
               style={{
                 background: 'none',
                 border: 'none',
@@ -508,7 +514,7 @@ export default function AITeachingSystem() {
           </div>
         ) : (
           <button
-            onClick={() => setIsLoggedIn(true)}
+            onClick={() => setShowLoginPage(true)}
             style={{
               width: '100%',
               padding: '10px',
@@ -643,9 +649,9 @@ export default function AITeachingSystem() {
         {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
       </button>
 
-      {!isLoggedIn && (
+      {!isAuthenticated && (
         <button
-          onClick={() => setIsLoggedIn(true)}
+          onClick={() => setShowLoginPage(true)}
           style={{
             padding: '8px 16px',
             background: colors.primary,
@@ -662,244 +668,6 @@ export default function AITeachingSystem() {
       )}
     </div>
   );
-
-  // General Chat Page - AI Tutor without specific subject
-  const GeneralChatPage = () => {
-    const messagesEndRef = useRef(null);
-    const [generalInput, setGeneralInput] = useState('');
-    const [generalMessages, setGeneralMessages] = useState([]);
-
-    useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [generalMessages]);
-
-    const handleSendGeneralMessage = async (message) => {
-      if (!message.trim()) return;
-
-      const userMessage = {
-        role: 'user',
-        content: message,
-        timestamp: new Date().toISOString()
-      };
-
-      setGeneralMessages(prev => [...prev, userMessage]);
-      setGeneralInput('');
-      setIsTyping(true);
-
-      try {
-        const response = await api.sendMessage(message, 'general', { language });
-        
-        const aiResponse = {
-          role: 'assistant',
-          content: response.response || response.message || "I'm here to help! Ask me anything.",
-          timestamp: new Date().toISOString()
-        };
-
-        setGeneralMessages(prev => [...prev, aiResponse]);
-      } catch (err) {
-        console.error('Error sending general message:', err);
-        const errorResponse = {
-          role: 'assistant',
-          content: "I'm having trouble connecting. Please try again.",
-          timestamp: new Date().toISOString()
-        };
-        setGeneralMessages(prev => [...prev, errorResponse]);
-      } finally {
-        setIsTyping(false);
-      }
-    };
-
-    return (
-      <div style={{ display: 'flex', flex: 1, height: 'calc(100vh - 64px)' }}>
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          background: colors.bg
-        }}>
-          {/* Header */}
-          <div style={{
-            padding: '20px 24px',
-            background: colors.surface,
-            borderBottom: `1px solid ${colors.border}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}>
-            <MessageSquare size={24} color={colors.primary} />
-            <div>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: colors.text }}>
-                {language === 'en' ? 'AI Chat Tutor' : 'المعلم الذكي'}
-              </div>
-              <div style={{ fontSize: '13px', color: colors.textSecondary, marginTop: '2px' }}>
-                {language === 'en' ? 'Ask me anything about computer science' : 'اسألني أي شيء عن علوم الحاسوب'}
-              </div>
-            </div>
-          </div>
-
-          {/* Messages Area */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px'
-          }}>
-            {generalMessages.length === 0 ? (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                padding: '40px'
-              }}>
-                <Sparkles size={48} color={colors.textTertiary} style={{ marginBottom: '16px' }} />
-                <h3 style={{ fontSize: '20px', fontWeight: 600, color: colors.text, marginBottom: '8px' }}>
-                  {language === 'en' ? 'Start Your Conversation' : 'ابدأ محادثتك'}
-                </h3>
-                <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '24px', maxWidth: '400px' }}>
-                  {language === 'en' 
-                    ? 'Ask me anything about programming, data structures, algorithms, or any computer science topic!'
-                    : 'اسألني عن البرمجة أو هياكل البيانات أو الخوارزميات أو أي موضوع في علوم الحاسوب!'}
-                </p>
-              </div>
-            ) : (
-              <>
-                {generalMessages.map((msg, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex',
-                    gap: '12px',
-                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '80%'
-                  }}>
-                    {msg.role === 'assistant' && (
-                      <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: colors.primaryLight,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <Brain size={18} color={colors.primary} />
-                      </div>
-                    )}
-                    <div style={{
-                      background: msg.role === 'user' ? colors.primary : colors.surface,
-                      color: msg.role === 'user' ? 'white' : colors.text,
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      fontSize: '14px',
-                      lineHeight: '1.5',
-                      border: msg.role === 'assistant' ? `1px solid ${colors.border}` : 'none'
-                    }}>
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
-                {isTyping && (
-                  <div style={{ display: 'flex', gap: '12px', alignSelf: 'flex-start', maxWidth: '80%' }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: colors.primaryLight,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <Brain size={18} color={colors.primary} />
-                    </div>
-                    <div style={{
-                      background: colors.surface,
-                      padding: '12px 16px',
-                      borderRadius: '12px',
-                      border: `1px solid ${colors.border}`,
-                      display: 'flex',
-                      gap: '4px'
-                    }}>
-                      {[0, 1, 2].map(i => (
-                        <div key={i} style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: colors.textTertiary,
-                          animation: 'typing 1.4s infinite',
-                          animationDelay: `${i * 0.2}s`
-                        }} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </>
-            )}
-          </div>
-
-          {/* Input Area */}
-          <div style={{
-            padding: '16px 24px 24px',
-            background: colors.surface,
-            borderTop: `1px solid ${colors.border}`
-          }}>
-            <div 
-              className="chat-input-container"
-              style={{
-              display: 'flex',
-              gap: '12px',
-              background: colors.bg,
-              border: `2px solid ${colors.border}`,
-              borderRadius: '12px',
-              padding: '12px',
-              transition: 'border-color 0.2s'
-            }}>
-              <input
-                type="text"
-                value={generalInput}
-                onChange={(e) => setGeneralInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendGeneralMessage(generalInput)}
-                placeholder={language === 'en' ? 'Ask me anything...' : 'اسألني أي شيء...'}
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '15px',
-                  color: colors.text,
-                  direction: isRTL ? 'rtl' : 'ltr'
-                }}
-              />
-              <button
-                onClick={() => handleSendGeneralMessage(generalInput)}
-                disabled={!generalInput.trim()}
-                style={{
-                  padding: '8px 16px',
-                  background: generalInput.trim() ? colors.primary : colors.surfaceHover,
-                  color: generalInput.trim() ? 'white' : colors.textTertiary,
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: generalInput.trim() ? 'pointer' : 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Send size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   // Home Page
   const HomePage = () => (
@@ -968,7 +736,7 @@ export default function AITeachingSystem() {
           <ChevronRight size={20} />
         </button>
 
-        {!isLoggedIn && (
+        {!isAuthenticated && (
           <button
             onClick={() => setCurrentPage('chat')}
             style={{
@@ -1153,7 +921,7 @@ export default function AITeachingSystem() {
                 {subjects[currentSubject].name[language]}
               </div>
               <div style={{ fontSize: '13px', color: colors.textSecondary, marginTop: '2px' }}>
-                {isLoggedIn ? 'Full access' : 'Limited mode - Login for full features'}
+                {isAuthenticated ? 'Full access' : 'Limited mode - Login for full features'}
                 {error && ' • Demo Mode'}
               </div>
             </div>
@@ -1276,9 +1044,7 @@ export default function AITeachingSystem() {
             background: colors.surface,
             borderTop: `1px solid ${colors.border}`
           }}>
-            <div 
-              className="chat-input-container"
-              style={{
+            <div style={{
               display: 'flex',
               gap: '12px',
               background: colors.bg,
@@ -1286,7 +1052,10 @@ export default function AITeachingSystem() {
               borderRadius: '12px',
               padding: '12px',
               transition: 'border-color 0.2s'
-            }}>
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = colors.primary}
+            onBlur={(e) => e.currentTarget.style.borderColor = colors.border}
+            >
               <input
                 type="text"
                 value={inputValue}
@@ -2252,7 +2021,7 @@ my_car.display_info()
           </div>
 
           {/* Recent Quizzes */}
-          {isLoggedIn && (
+          {isAuthenticated && (
             <div style={{
               background: colors.surface,
               borderRadius: '16px',
@@ -2313,6 +2082,11 @@ my_car.display_info()
     );
   };
 
+  // Show login page if not authenticated and user clicked login
+  if (showLoginPage && !isAuthenticated) {
+    return <LoginPage colors={colors} t={t} onSuccess={() => setShowLoginPage(false)} />;
+  }
+
   // Main Layout
   return (
     <div style={{
@@ -2352,9 +2126,6 @@ my_car.display_info()
         ::-webkit-scrollbar-thumb:hover {
           background: ${colors.textTertiary};
         }
-        .chat-input-container:focus-within {
-          border-color: ${colors.primary} !important;
-        }
       `}</style>
 
       <Sidebar />
@@ -2374,7 +2145,6 @@ my_car.display_info()
           flexDirection: 'column'
         }}>
           {currentPage === 'home' && <HomePage />}
-          {currentPage === 'general-chat' && <GeneralChatPage />}
           {currentPage === 'chat' && <ChatPage />}
           {currentPage === 'upload' && <UploadPage />}
           {currentPage === 'quiz' && <QuizGeneratorPage />}
