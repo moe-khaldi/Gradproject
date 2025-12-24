@@ -2,7 +2,7 @@ name: CI-CD Gradproject
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-and-push:
@@ -27,7 +27,7 @@ jobs:
           context: ./Backend/django_api
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/gradproject-backend:latest
+            awnlyone/gradproject-backend:latest
 
       - name: Build & push FRONTEND image
         uses: docker/build-push-action@v6
@@ -35,4 +35,4 @@ jobs:
           context: ./ai-teaching-frontend
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/gradproject-frontend:latest
+            awnlyone/gradproject-frontend:latest
