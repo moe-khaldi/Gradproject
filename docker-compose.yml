@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: ./Backend/django_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./Backend/django_api/db.sqlite3:/app/db.sqlite3  
+
+  frontend:
+    build:
+      context: ./ai-teaching-frontend
+      args:
+        VITE_API_BASE: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
