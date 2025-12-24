@@ -4,7 +4,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./Backend/django_api/db.sqlite3:/app/db.sqlite3  
+      - ./Backend/django_api:/app
+      - backend_db:/app
 
   frontend:
     build:
@@ -15,3 +16,6 @@ services:
       - "5173:80"
     depends_on:
       - backend
+
+volumes:
+  backend_db:
