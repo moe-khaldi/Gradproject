@@ -19,7 +19,7 @@ for model in genai.list_models():
 # Test a simple generation
 print("\n=== Testing Model ===")
 try:
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-flash-latest')
     response = model.generate_content("Say hello in one word")
     print(f"[OK] gemini-1.5-flash-latest works: {response.text}")
 except Exception as e:

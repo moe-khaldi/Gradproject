@@ -315,12 +315,13 @@ export default function AITeachingSystem() {
     try {
       setLoading(true);
       const quizConfig = {
+        ...config,
         subject: currentSubject,
         topic: config.topic || 'General',
         num_questions: config.numQuestions || 5,
         difficulty: config.difficulty || 'medium',
         types: config.types || ['multiple', 'boolean', 'short'],
-        ...config
+        
       };
 
       const response = await api.generateQuiz(quizConfig);
