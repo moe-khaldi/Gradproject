@@ -13,12 +13,15 @@ class APIService {
     // Get token from localStorage
     const token = localStorage.getItem('access_token');
 
+    // Build headers - don't set Content-Type for FormData
+    const headers = {
+      ...(!(options.body instanceof FormData) && { 'Content-Type': 'application/json' }),
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers,
+    };
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
+      headers,
       ...options,
     };
 
@@ -32,11 +35,31 @@ class APIService {
         if (refreshed) {
           // Retry request with new token
           const newToken = localStorage.getItem('access_token');
-          config.headers['Authorization'] = `Bearer ${newToken}`;
-          const retryResponse = await fetch(url, config);
+
+          // If this is a file upload, rebuild the FormData
+          let retryBody = config.body;
+          if (options._buildFormData) {
+            retryBody = options._buildFormData();
+          }
+
+          // Rebuild headers for retry - important for FormData to not include Content-Type
+          const retryHeaders = {
+            ...(!(retryBody instanceof FormData) && { 'Content-Type': 'application/json' }),
+            'Authorization': `Bearer ${newToken}`,
+            ...options.headers,
+          };
+
+          // Create new config with updated token, fresh body, and fresh headers
+          const retryConfig = {
+            ...config,
+            body: retryBody,
+            headers: retryHeaders
+          };
+          const retryResponse = await fetch(url, retryConfig);
 
           if (!retryResponse.ok) {
-            throw new Error(`HTTP error! status: ${retryResponse.status}`);
+            const errorText = await retryResponse.text();
+            throw new Error(errorText || `HTTP error! status: ${retryResponse.status}`);
           }
           return await retryResponse.json();
         } else {
@@ -147,20 +170,26 @@ class APIService {
 
   // Upload & Explain API
   async uploadFile(file, options = {}) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    if (options.subject) {
-      formData.append('subject', options.subject);
-    }
-    if (options.topic) {
-      formData.append('topic', options.topic);
-    }
+    // Build FormData - create a factory function that can be called multiple times
+    const buildFormData = () => {
+      const formData = new FormData();
+      formData.append('file', file);
 
+      if (options.subject) {
+        formData.append('subject', options.subject);
+      }
+      if (options.topic) {
+        formData.append('topic', options.topic);
+      }
+      return formData;
+    };
+
+    // Make the request with FormData builder function
     return this.request('/api/upload/explain/', {
       method: 'POST',
       headers: {}, // Let browser set Content-Type for FormData
-      body: formData,
+      body: buildFormData(), // Call function to create fresh FormData
+      _buildFormData: buildFormData, // Pass function to rebuild FormData if retry needed
     });
   }
 

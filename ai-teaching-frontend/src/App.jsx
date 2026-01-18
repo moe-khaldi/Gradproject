@@ -327,10 +327,12 @@ export default function AITeachingSystem() {
       setQuizData(response);
       setShowRightPanel(true);
       setRightPanelContent('quiz');
+      setCurrentPage('chat');
       console.log('✅ Quiz generated from Django:', response);
     } catch (err) {
       console.error('❌ Quiz generation failed, using fallback:', err);
       generateFallbackQuiz();
+      setCurrentPage('chat');
     } finally {
       setLoading(false);
     }
@@ -1140,6 +1142,78 @@ export default function AITeachingSystem() {
     );
   };
 
+  const renderMarkdown = (text) => {
+    if (!text) return null;
+
+    // Split by code blocks first
+    const parts = text.split(/(```[\s\S]*?```)/g);
+
+    return parts.map((part, partIndex) => {
+      // Handle code blocks
+      if (part.startsWith('```')) {
+        const lines = part.slice(3, -3).split('\n');
+        const language = lines[0].trim();
+        const code = lines.slice(language ? 1 : 0).join('\n');
+        return (
+          <pre key={partIndex} style={{
+            background: colors.codeBlock,
+            padding: '12px',
+            borderRadius: '8px',
+            overflow: 'auto',
+            fontSize: '13px',
+            fontFamily: 'monospace',
+            margin: '8px 0',
+            border: `1px solid ${colors.border}`
+          }}>
+            <code>{code}</code>
+          </pre>
+        );
+      }
+
+      // Process regular text with inline formatting
+      const lines = part.split('\n');
+      return lines.map((line, lineIndex) => {
+        // Headers
+        if (line.startsWith('### ')) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 700, fontSize: '15px', marginTop: '12px', marginBottom: '4px' }}>{line.slice(4)}</div>;
+        }
+        if (line.startsWith('## ')) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 700, fontSize: '16px', marginTop: '14px', marginBottom: '6px' }}>{line.slice(3)}</div>;
+        }
+        if (line.startsWith('# ')) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 800, fontSize: '18px', marginTop: '16px', marginBottom: '8px' }}>{line.slice(2)}</div>;
+        }
+
+        // Bullet points
+        if (line.match(/^[\*\-]\s/)) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ paddingLeft: '16px' }}>• {line.slice(2)}</div>;
+        }
+        if (line.match(/^\d+\.\s/)) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ paddingLeft: '16px' }}>{line}</div>;
+        }
+
+        // Bold and italic (simple replace)
+        let processed = line
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, `<code style="background:${colors.codeBlock};padding:2px 4px;border-radius:3px;font-family:monospace;border:1px solid ${colors.border}">$1</code>`);
+
+        // Horizontal rule
+        if (line.match(/^---+$/)) {
+          return <hr key={`${partIndex}-${lineIndex}`} style={{ border: 'none', borderTop: `1px solid ${colors.border}`, margin: '12px 0' }} />;
+        }
+
+        // Empty line
+        if (!line.trim()) {
+          return <div key={`${partIndex}-${lineIndex}`} style={{ height: '8px' }} />;
+        }
+
+        // Regular text with inline HTML
+        return <div key={`${partIndex}-${lineIndex}`} dangerouslySetInnerHTML={{ __html: processed }} />;
+      });
+    });
+  };
+
   const MessageBubble = ({ message }) => {
     const isUser = message.role === 'user';
     return (
@@ -1179,10 +1253,9 @@ export default function AITeachingSystem() {
             borderRadius: '12px',
             border: isUser ? 'none' : `1px solid ${colors.border}`,
             fontSize: '14px',
-            lineHeight: 1.6,
-            whiteSpace: 'pre-wrap'
+            lineHeight: 1.6
           }}>
-            {message.content}
+            {isUser ? message.content : renderMarkdown(message.content)}
           </div>
           {message.fallback && (
             <div style={{
@@ -1265,12 +1338,42 @@ export default function AITeachingSystem() {
     const [submitted, setSubmitted] = useState(false);
     const [score, setScore] = useState(0);
 
+    const quizId = quiz.quiz_id || quiz.id;
+    const questions = quiz.questions || [];
+
+    const normalizeQuestion = (q) => {
+      let type = q.type;
+      if (type === 'multiple_choice') type = 'multiple';
+      if (type === 'true_false' || type === 'boolean') type = 'boolean';
+      if (type === 'short_answer') type = 'short';
+
+      let correct = q.correct;
+      if (q.correct_answer !== undefined) {
+        const letterToIndex = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
+        correct = letterToIndex[q.correct_answer?.toUpperCase()] ?? q.correct_answer;
+      }
+
+      return { ...q, type, correct };
+    };
+
     const handleSubmit = async () => {
-      // Try to submit to Django backend
       try {
-        if (quiz.id && !quiz.fallback) {
-          const response = await api.submitQuiz(quiz.id, answers);
-          setScore(response.score);
+        if (quizId && !quiz.fallback) {
+          const backendAnswers = {};
+          Object.entries(answers).forEach(([idx, answer]) => {
+            const q = questions[idx];
+            if (q && (q.type === 'multiple_choice' || q.type === 'multiple')) {
+              const indexToLetter = { 0: 'A', 1: 'B', 2: 'C', 3: 'D' };
+              backendAnswers[idx] = indexToLetter[answer] || answer;
+            } else if (q && (q.type === 'boolean' || q.type === 'true_false')) {
+              backendAnswers[idx] = answer ? 'True' : 'False';
+            } else {
+              backendAnswers[idx] = answer;
+            }
+          });
+
+          const response = await api.submitQuiz(quizId, backendAnswers);
+          setScore(Math.round(response.score / 100 * questions.length));
           setSubmitted(true);
           console.log('✅ Quiz submitted to Django:', response);
           return;
@@ -1279,11 +1382,11 @@ export default function AITeachingSystem() {
         console.error('❌ Quiz submission failed, calculating locally:', err);
       }
 
-      // Fallback: Calculate score locally
       let correct = 0;
-      quiz.questions.forEach((q, i) => {
-        if (q.type === 'multiple' && answers[i] === q.correct) correct++;
-        if (q.type === 'boolean' && answers[i] === q.correct) correct++;
+      questions.forEach((q, i) => {
+        const normalized = normalizeQuestion(q);
+        if ((normalized.type === 'multiple' || normalized.type === 'multiple_choice') && answers[i] === normalized.correct) correct++;
+        if ((normalized.type === 'boolean' || normalized.type === 'true_false') && answers[i] === normalized.correct) correct++;
       });
       setScore(correct);
       setSubmitted(true);
@@ -1309,8 +1412,10 @@ export default function AITeachingSystem() {
           </div>
         )}
 
-        {quiz.questions.map((q, index) => (
-          <div key={q.id} style={{
+        {questions.map((rawQ, index) => {
+          const q = normalizeQuestion(rawQ);
+          return (
+          <div key={q.id || index} style={{
             marginBottom: '24px',
             padding: '20px',
             background: colors.bg,
@@ -1443,7 +1548,8 @@ export default function AITeachingSystem() {
               </div>
             )}
           </div>
-        ))}
+        );
+        })}
 
         {!submitted ? (
           <button
@@ -1473,10 +1579,10 @@ export default function AITeachingSystem() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '32px', fontWeight: 800, color: colors.primary, marginBottom: '8px' }}>
-              {score}/{quiz.questions.length}
+              {score}/{questions.length}
             </div>
             <div style={{ fontSize: '14px', color: colors.text, marginBottom: '16px' }}>
-              You got {Math.round((score / quiz.questions.length) * 100)}% correct
+              You got {Math.round((score / questions.length) * 100)}% correct
             </div>
             <div style={{
               fontSize: '13px',
