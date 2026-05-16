@@ -1,11 +1,15 @@
 services:
   backend:
     build: ./Backend/django_api
+    env_file:
+      - ./Backend/django_api/.env
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"
     volumes:
       - ./Backend/django_api:/app
-      - backend_db:/app
+      - ./RAG_cLAUDE1:/app/RAG_cLAUDE1
+      - backend_db:/app/data
 
   frontend:
     build:

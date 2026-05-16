@@ -1,6 +1,8 @@
 from django.urls import path
+
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import (
+    health,
     MaterialListCreateView,
     MaterialRetrieveUpdateDestroyView,
     RegisterView,
@@ -16,6 +18,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path("health/", health),
     # Material endpoints
     path('materials/', MaterialListCreateView.as_view(), name='material-list'),
     path('materials/<int:pk>/', MaterialRetrieveUpdateDestroyView.as_view(), name='material-detail'),

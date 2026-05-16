@@ -32,8 +32,17 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-# Google Gemini API Configuration
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+# AI / RAG Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+QDRANT_URL = os.getenv('QDRANT_URL', '')
+QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '')
+QDRANT_LOCATION = os.getenv('QDRANT_LOCATION', ':memory:')
+QDRANT_COLLECTION = os.getenv('QDRANT_COLLECTION', 'OOP_COURSE_MATERIAL')
+RAG_TOP_K = int(os.getenv('RAG_TOP_K', '5'))
+RAG_EMBEDDING_MODEL = os.getenv('RAG_EMBEDDING_MODEL', 'text-embedding-3-small')
+RAG_EMBEDDING_DIM = int(os.getenv('RAG_EMBEDDING_DIM', '1536'))
+RAG_LLM_MODEL = os.getenv('RAG_LLM_MODEL', 'gpt-5.4-mini')
+RAG_LLM_TEMPERATURE = float(os.getenv('RAG_LLM_TEMPERATURE', '0'))
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 
@@ -115,7 +124,7 @@ WSGI_APPLICATION = 'gp1_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': os.getenv('SQLITE_PATH') or str(BASE_DIR / 'data' / 'db.sqlite3'),
     }
 }
 

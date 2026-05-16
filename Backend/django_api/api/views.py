@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -6,13 +5,19 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from django.conf import settings
+from django.http import JsonResponse
+
+
+def health(request):
+    return JsonResponse({"status": "ok"})
+
+
 from .models import Material, ChatSession, ChatMessage, Quiz, QuizSubmission
 from .serializers import (
     MaterialSerializer, UserSerializer, RegisterSerializer,
     ChatSessionSerializer, ChatMessageSerializer, QuizSerializer, QuizSubmissionSerializer
 )
-import google.generativeai as genai
+from .rag_service import get_rag_service
 import json
 
 User = get_user_model()
@@ -74,14 +79,6 @@ class CurrentUserView(APIView):
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
-# Initialize Gemini AI
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    # Use the latest flash model - gemini-flash-latest is an alias that always points to the newest
-    gemini_model = genai.GenerativeModel('gemini-flash-latest')
-else:
-    gemini_model = None
-
 # Chat Views
 class ChatView(APIView):
     permission_classes = [IsAuthenticated]
@@ -114,34 +111,20 @@ class ChatView(APIView):
                 context=context
             )
 
-            # Generate AI response
-            if not gemini_model:
-                return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            # Build prompt based on context
-            action_type = context.get('actionType', 'chat')
-            language = context.get('language', 'en')
-
-            # Create system prompt
-            system_prompts = {
-                'explain': f"You are a helpful teaching assistant. Explain the concept clearly and simply in {'Arabic' if language == 'ar' else 'English'}. Focus on clarity and use examples.",
-                'example': f"You are a helpful teaching assistant. Provide a clear code example with explanation in {'Arabic' if language == 'ar' else 'English'}. Make sure the code is well-commented.",
-                'practice': f"You are a helpful teaching assistant. Create practice problems related to the topic in {'Arabic' if language == 'ar' else 'English'}. Include hints and solutions.",
-                'summarize': f"You are a helpful teaching assistant. Provide a concise summary of the key points in {'Arabic' if language == 'ar' else 'English'}.",
-                'chat': f"You are a helpful teaching assistant for {subject}. Answer questions clearly in {'Arabic' if language == 'ar' else 'English'}."
-            }
-
-            system_prompt = system_prompts.get(action_type, system_prompts['chat'])
-
             # Get recent conversation history for context
             recent_messages = ChatMessage.objects.filter(session=session).order_by('-created_at')[:5]
-            conversation_history = "\n".join([f"{msg.role}: {msg.content}" for msg in reversed(recent_messages)])
+            conversation_history = [
+                {'role': msg.role, 'content': msg.content}
+                for msg in reversed(recent_messages)
+            ]
 
-            # Generate response
-            full_prompt = f"{system_prompt}\n\nSubject: {subject}\n\nConversation History:\n{conversation_history}\n\nUser: {message}\n\nAssistant:"
-
-            response = gemini_model.generate_content(full_prompt)
-            ai_response = response.text
+            rag_result = get_rag_service().chat(
+                message=message,
+                subject=subject,
+                context=context,
+                history=conversation_history,
+            )
+            ai_response = rag_result['answer']
 
             # Save AI response
             ChatMessage.objects.create(
@@ -153,8 +136,11 @@ class ChatView(APIView):
 
             return Response({
                 'response': ai_response,
+                'answer': ai_response,
+                'route': rag_result.get('route'),
+                'confidence': rag_result.get('confidence'),
                 'session_id': session.id,
-                'references': [],
+                'references': rag_result.get('references', []),
                 'quiz': None,
                 'example': None
             }, status=status.HTTP_200_OK)
@@ -178,60 +164,19 @@ class QuizGenerateView(APIView):
             if not topic:
                 return Response({'error': 'Topic is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not gemini_model:
-                return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
             type_mapping = {
                 'multiple': 'multiple_choice',
                 'boolean': 'true_false',
                 'short': 'short_answer'
             }
             prompt_types = [type_mapping.get(t, t) for t in question_types]
-
-            prompt = f"""Generate a quiz about {topic} in {subject} with the following requirements:
-- Number of questions: {num_questions}
-- Difficulty: {difficulty}
-- Question types: {', '.join(prompt_types)}
-
-Format the response as a JSON array with this structure:
-[
-  {{
-    "question": "Question text",
-    "type": "multiple_choice",
-    "options": ["A) option1", "B) option2", "C) option3", "D) option4"],
-    "correct_answer": "A",
-    "explanation": "Brief explanation of the correct answer"
-  }},
-  {{
-    "question": "True or false: Statement here",
-    "type": "true_false",
-    "correct_answer": "True",
-    "explanation": "Brief explanation"
-  }},
-  {{
-    "question": "Short answer question here?",
-    "type": "short_answer",
-    "correct_answer": "Expected answer",
-    "explanation": "Brief explanation"
-  }}
-]
-
-Important:
-- For multiple_choice: include exactly 4 options labeled A), B), C), D)
-- For true_false: correct_answer must be "True" or "False"
-- For short_answer: provide expected answer
-- Return valid JSON only, no additional text or markdown."""
-
-            response = gemini_model.generate_content(prompt)
-            response_text = response.text
-
-            # Extract JSON from response
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0].strip()
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].split('```')[0].strip()
-
-            questions = json.loads(response_text)
+            questions = get_rag_service().generate_quiz(
+                subject=subject,
+                topic=topic,
+                num_questions=num_questions,
+                difficulty=difficulty,
+                question_types=prompt_types,
+            )
 
             # Save quiz to database
             quiz = Quiz.objects.create(
@@ -327,9 +272,6 @@ class FileExplainView(APIView):
             if not uploaded_file:
                 return Response({'error': 'File is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not gemini_model:
-                return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
             # Check file size (limit to 1MB for text files)
             if uploaded_file.size > 1024 * 1024:
                 return Response({'error': 'File too large. Maximum size is 1MB'}, status=status.HTTP_400_BAD_REQUEST)
@@ -341,25 +283,11 @@ class FileExplainView(APIView):
             if len(file_content) > 30000:
                 file_content = file_content[:30000] + "\n\n[Content truncated due to length...]"
 
-            # Create explanation prompt
-            prompt = f"""Analyze and explain the following content from {subject} - {topic}:
-
-{file_content}
-
-Provide:
-1. A clear explanation of the main concepts
-2. Key points and takeaways
-3. Examples if applicable
-4. Any important notes or warnings
-
-Format your response in a clear, educational manner."""
-
-            response = gemini_model.generate_content(prompt)
-            explanation = response.text
+            explanation_result = get_rag_service().explain_text(file_content, subject, topic)
 
             return Response({
-                'explanation': explanation,
-                'references': [],
+                'explanation': explanation_result['answer'],
+                'references': explanation_result.get('references', []),
                 'file_name': uploaded_file.name
             }, status=status.HTTP_200_OK)
 
@@ -383,28 +311,11 @@ class TextExplainView(APIView):
             if not content:
                 return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not gemini_model:
-                return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            # Create explanation prompt
-            prompt = f"""Analyze and explain the following content from {subject} - {topic}:
-
-{content}
-
-Provide:
-1. A clear explanation of the main concepts
-2. Key points and takeaways
-3. Examples if applicable
-4. Any important notes or warnings
-
-Format your response in a clear, educational manner."""
-
-            response = gemini_model.generate_content(prompt)
-            explanation = response.text
+            explanation_result = get_rag_service().explain_text(content, subject, topic)
 
             return Response({
-                'explanation': explanation,
-                'references': []
+                'explanation': explanation_result['answer'],
+                'references': explanation_result.get('references', [])
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
