@@ -32,7 +32,7 @@ jobs:
       - name: Build & push FRONTEND image
         uses: docker/build-push-action@v6
         with:
-          context: ./ai-teaching-frontend
+          context: ./JUSTutor_frontend
           push: true
           tags: |
             awnlyone/gradproject-frontend:latest
