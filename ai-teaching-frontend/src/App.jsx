@@ -1,8 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Send, Upload, BookOpen, MessageSquare, FileText, Brain, Moon, Sun, Menu, X, ChevronRight, Home, Settings, User, LogOut, Check, AlertCircle, Sparkles, Code, Database, Lightbulb, Target, FileQuestion, BarChart3, Loader } from 'lucide-react';
 import api from "./api";
-import { useAuth } from './AuthContext';
-import LoginPage from './LoginPage';
 
 // Design System Constants
 const COLORS = {
@@ -44,10 +42,9 @@ const COLORS = {
 
 // Main App Component
 export default function AITeachingSystem() {
-  const { user, logout: authLogout, isAuthenticated } = useAuth();
-  const [showLoginPage, setShowLoginPage] = useState(false);
   const [theme, setTheme] = useState('light');
   const [language, setLanguage] = useState('en');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPage, setCurrentPage] = useState('home');
   const [currentSubject, setCurrentSubject] = useState('oop');
@@ -315,25 +312,22 @@ export default function AITeachingSystem() {
     try {
       setLoading(true);
       const quizConfig = {
-        ...config,
         subject: currentSubject,
         topic: config.topic || 'General',
         num_questions: config.numQuestions || 5,
         difficulty: config.difficulty || 'medium',
         types: config.types || ['multiple', 'boolean', 'short'],
-        
+        ...config
       };
 
       const response = await api.generateQuiz(quizConfig);
       setQuizData(response);
       setShowRightPanel(true);
       setRightPanelContent('quiz');
-      setCurrentPage('chat');
       console.log('✅ Quiz generated from Django:', response);
     } catch (err) {
       console.error('❌ Quiz generation failed, using fallback:', err);
       generateFallbackQuiz();
-      setCurrentPage('chat');
     } finally {
       setLoading(false);
     }
@@ -447,7 +441,7 @@ export default function AITeachingSystem() {
           </>
         )}
 
-        {isAuthenticated && (
+        {isLoggedIn && (
           <>
             <div style={{ padding: '20px 20px 8px', fontSize: '11px', fontWeight: 600, color: colors.textTertiary, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {t.savedSessions}
@@ -479,7 +473,7 @@ export default function AITeachingSystem() {
 
       {/* User Section */}
       <div style={{ padding: '16px', borderTop: `1px solid ${colors.border}` }}>
-        {isAuthenticated ? (
+        {isLoggedIn ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
               width: '36px',
@@ -493,17 +487,14 @@ export default function AITeachingSystem() {
               fontSize: '14px',
               fontWeight: 600
             }}>
-              {user?.first_name?.[0]}{user?.last_name?.[0]}
+              AS
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>{user?.first_name} {user?.last_name}</div>
-              <div style={{ fontSize: '12px', color: colors.textSecondary }}>{user?.email}</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>Ahmad Student</div>
+              <div style={{ fontSize: '12px', color: colors.textSecondary }}>ahmad@just.edu.jo</div>
             </div>
             <button
-              onClick={() => {
-                authLogout();
-                setShowLoginPage(false);
-              }}
+              onClick={() => setIsLoggedIn(false)}
               style={{
                 background: 'none',
                 border: 'none',
@@ -517,7 +508,7 @@ export default function AITeachingSystem() {
           </div>
         ) : (
           <button
-            onClick={() => setShowLoginPage(true)}
+            onClick={() => setIsLoggedIn(true)}
             style={{
               width: '100%',
               padding: '10px',
@@ -652,9 +643,9 @@ export default function AITeachingSystem() {
         {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
       </button>
 
-      {!isAuthenticated && (
+      {!isLoggedIn && (
         <button
-          onClick={() => setShowLoginPage(true)}
+          onClick={() => setIsLoggedIn(true)}
           style={{
             padding: '8px 16px',
             background: colors.primary,
@@ -739,7 +730,7 @@ export default function AITeachingSystem() {
           <ChevronRight size={20} />
         </button>
 
-        {!isAuthenticated && (
+        {!isLoggedIn && (
           <button
             onClick={() => setCurrentPage('chat')}
             style={{
@@ -924,7 +915,7 @@ export default function AITeachingSystem() {
                 {subjects[currentSubject].name[language]}
               </div>
               <div style={{ fontSize: '13px', color: colors.textSecondary, marginTop: '2px' }}>
-                {isAuthenticated ? 'Full access' : 'Limited mode - Login for full features'}
+                {isLoggedIn ? 'Full access' : 'Limited mode - Login for full features'}
                 {error && ' • Demo Mode'}
               </div>
             </div>
@@ -1143,78 +1134,6 @@ export default function AITeachingSystem() {
     );
   };
 
-  const renderMarkdown = (text) => {
-    if (!text) return null;
-
-    // Split by code blocks first
-    const parts = text.split(/(```[\s\S]*?```)/g);
-
-    return parts.map((part, partIndex) => {
-      // Handle code blocks
-      if (part.startsWith('```')) {
-        const lines = part.slice(3, -3).split('\n');
-        const language = lines[0].trim();
-        const code = lines.slice(language ? 1 : 0).join('\n');
-        return (
-          <pre key={partIndex} style={{
-            background: colors.codeBlock,
-            padding: '12px',
-            borderRadius: '8px',
-            overflow: 'auto',
-            fontSize: '13px',
-            fontFamily: 'monospace',
-            margin: '8px 0',
-            border: `1px solid ${colors.border}`
-          }}>
-            <code>{code}</code>
-          </pre>
-        );
-      }
-
-      // Process regular text with inline formatting
-      const lines = part.split('\n');
-      return lines.map((line, lineIndex) => {
-        // Headers
-        if (line.startsWith('### ')) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 700, fontSize: '15px', marginTop: '12px', marginBottom: '4px' }}>{line.slice(4)}</div>;
-        }
-        if (line.startsWith('## ')) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 700, fontSize: '16px', marginTop: '14px', marginBottom: '6px' }}>{line.slice(3)}</div>;
-        }
-        if (line.startsWith('# ')) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ fontWeight: 800, fontSize: '18px', marginTop: '16px', marginBottom: '8px' }}>{line.slice(2)}</div>;
-        }
-
-        // Bullet points
-        if (line.match(/^[\*\-]\s/)) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ paddingLeft: '16px' }}>• {line.slice(2)}</div>;
-        }
-        if (line.match(/^\d+\.\s/)) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ paddingLeft: '16px' }}>{line}</div>;
-        }
-
-        // Bold and italic (simple replace)
-        let processed = line
-          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/`([^`]+)`/g, `<code style="background:${colors.codeBlock};padding:2px 4px;border-radius:3px;font-family:monospace;border:1px solid ${colors.border}">$1</code>`);
-
-        // Horizontal rule
-        if (line.match(/^---+$/)) {
-          return <hr key={`${partIndex}-${lineIndex}`} style={{ border: 'none', borderTop: `1px solid ${colors.border}`, margin: '12px 0' }} />;
-        }
-
-        // Empty line
-        if (!line.trim()) {
-          return <div key={`${partIndex}-${lineIndex}`} style={{ height: '8px' }} />;
-        }
-
-        // Regular text with inline HTML
-        return <div key={`${partIndex}-${lineIndex}`} dangerouslySetInnerHTML={{ __html: processed }} />;
-      });
-    });
-  };
-
   const MessageBubble = ({ message }) => {
     const isUser = message.role === 'user';
     return (
@@ -1254,9 +1173,10 @@ export default function AITeachingSystem() {
             borderRadius: '12px',
             border: isUser ? 'none' : `1px solid ${colors.border}`,
             fontSize: '14px',
-            lineHeight: 1.6
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap'
           }}>
-            {isUser ? message.content : renderMarkdown(message.content)}
+            {message.content}
           </div>
           {message.fallback && (
             <div style={{
@@ -1339,42 +1259,12 @@ export default function AITeachingSystem() {
     const [submitted, setSubmitted] = useState(false);
     const [score, setScore] = useState(0);
 
-    const quizId = quiz.quiz_id || quiz.id;
-    const questions = quiz.questions || [];
-
-    const normalizeQuestion = (q) => {
-      let type = q.type;
-      if (type === 'multiple_choice') type = 'multiple';
-      if (type === 'true_false' || type === 'boolean') type = 'boolean';
-      if (type === 'short_answer') type = 'short';
-
-      let correct = q.correct;
-      if (q.correct_answer !== undefined) {
-        const letterToIndex = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
-        correct = letterToIndex[q.correct_answer?.toUpperCase()] ?? q.correct_answer;
-      }
-
-      return { ...q, type, correct };
-    };
-
     const handleSubmit = async () => {
+      // Try to submit to Django backend
       try {
-        if (quizId && !quiz.fallback) {
-          const backendAnswers = {};
-          Object.entries(answers).forEach(([idx, answer]) => {
-            const q = questions[idx];
-            if (q && (q.type === 'multiple_choice' || q.type === 'multiple')) {
-              const indexToLetter = { 0: 'A', 1: 'B', 2: 'C', 3: 'D' };
-              backendAnswers[idx] = indexToLetter[answer] || answer;
-            } else if (q && (q.type === 'boolean' || q.type === 'true_false')) {
-              backendAnswers[idx] = answer ? 'True' : 'False';
-            } else {
-              backendAnswers[idx] = answer;
-            }
-          });
-
-          const response = await api.submitQuiz(quizId, backendAnswers);
-          setScore(Math.round(response.score / 100 * questions.length));
+        if (quiz.id && !quiz.fallback) {
+          const response = await api.submitQuiz(quiz.id, answers);
+          setScore(response.score);
           setSubmitted(true);
           console.log('✅ Quiz submitted to Django:', response);
           return;
@@ -1383,11 +1273,11 @@ export default function AITeachingSystem() {
         console.error('❌ Quiz submission failed, calculating locally:', err);
       }
 
+      // Fallback: Calculate score locally
       let correct = 0;
-      questions.forEach((q, i) => {
-        const normalized = normalizeQuestion(q);
-        if ((normalized.type === 'multiple' || normalized.type === 'multiple_choice') && answers[i] === normalized.correct) correct++;
-        if ((normalized.type === 'boolean' || normalized.type === 'true_false') && answers[i] === normalized.correct) correct++;
+      quiz.questions.forEach((q, i) => {
+        if (q.type === 'multiple' && answers[i] === q.correct) correct++;
+        if (q.type === 'boolean' && answers[i] === q.correct) correct++;
       });
       setScore(correct);
       setSubmitted(true);
@@ -1413,10 +1303,8 @@ export default function AITeachingSystem() {
           </div>
         )}
 
-        {questions.map((rawQ, index) => {
-          const q = normalizeQuestion(rawQ);
-          return (
-          <div key={q.id || index} style={{
+        {quiz.questions.map((q, index) => (
+          <div key={q.id} style={{
             marginBottom: '24px',
             padding: '20px',
             background: colors.bg,
@@ -1549,8 +1437,7 @@ export default function AITeachingSystem() {
               </div>
             )}
           </div>
-        );
-        })}
+        ))}
 
         {!submitted ? (
           <button
@@ -1580,10 +1467,10 @@ export default function AITeachingSystem() {
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '32px', fontWeight: 800, color: colors.primary, marginBottom: '8px' }}>
-              {score}/{questions.length}
+              {score}/{quiz.questions.length}
             </div>
             <div style={{ fontSize: '14px', color: colors.text, marginBottom: '16px' }}>
-              You got {Math.round((score / questions.length) * 100)}% correct
+              You got {Math.round((score / quiz.questions.length) * 100)}% correct
             </div>
             <div style={{
               fontSize: '13px',
@@ -2128,7 +2015,7 @@ my_car.display_info()
           </div>
 
           {/* Recent Quizzes */}
-          {isAuthenticated && (
+          {isLoggedIn && (
             <div style={{
               background: colors.surface,
               borderRadius: '16px',
@@ -2188,11 +2075,6 @@ my_car.display_info()
       </div>
     );
   };
-
-  // Show login page if not authenticated and user clicked login
-  if (showLoginPage && !isAuthenticated) {
-    return <LoginPage colors={colors} t={t} onSuccess={() => setShowLoginPage(false)} />;
-  }
 
   // Main Layout
   return (

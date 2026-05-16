@@ -1,4 +1,4 @@
-// API Service for Django Backend Integration
+﻿// API Service for Django Backend Integration
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 
 class APIService {
@@ -9,99 +9,26 @@ class APIService {
   // Helper method for making requests
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
-
-    // Get token from localStorage
-    const token = localStorage.getItem('access_token');
-
-    // Build headers - don't set Content-Type for FormData
-    const headers = {
-      ...(!(options.body instanceof FormData) && { 'Content-Type': 'application/json' }),
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
-    };
-
     const config = {
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
       ...options,
     };
 
     try {
       const response = await fetch(url, config);
-
-      // Handle token expiration
-      if (response.status === 401) {
-        // Try to refresh token
-        const refreshed = await this.refreshToken();
-        if (refreshed) {
-          // Retry request with new token
-          const newToken = localStorage.getItem('access_token');
-
-          // If this is a file upload, rebuild the FormData
-          let retryBody = config.body;
-          if (options._buildFormData) {
-            retryBody = options._buildFormData();
-          }
-
-          // Rebuild headers for retry - important for FormData to not include Content-Type
-          const retryHeaders = {
-            ...(!(retryBody instanceof FormData) && { 'Content-Type': 'application/json' }),
-            'Authorization': `Bearer ${newToken}`,
-            ...options.headers,
-          };
-
-          // Create new config with updated token, fresh body, and fresh headers
-          const retryConfig = {
-            ...config,
-            body: retryBody,
-            headers: retryHeaders
-          };
-          const retryResponse = await fetch(url, retryConfig);
-
-          if (!retryResponse.ok) {
-            const errorText = await retryResponse.text();
-            throw new Error(errorText || `HTTP error! status: ${retryResponse.status}`);
-          }
-          return await retryResponse.json();
-        } else {
-          // Redirect to login
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          throw new Error('Session expired. Please login again.');
-        }
-      }
-
+      
       if (!response.ok) {
         const error = await response.text();
         throw new Error(error || `HTTP error! status: ${response.status}`);
       }
-
+      
       return await response.json();
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
-    }
-  }
-
-  // Token refresh method
-  async refreshToken() {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) return false;
-
-    try {
-      const response = await fetch(`${this.baseURL}/api/auth/token/refresh/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh: refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('access_token', data.access);
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
     }
   }
 
@@ -170,26 +97,20 @@ class APIService {
 
   // Upload & Explain API
   async uploadFile(file, options = {}) {
-    // Build FormData - create a factory function that can be called multiple times
-    const buildFormData = () => {
-      const formData = new FormData();
-      formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (options.subject) {
+      formData.append('subject', options.subject);
+    }
+    if (options.topic) {
+      formData.append('topic', options.topic);
+    }
 
-      if (options.subject) {
-        formData.append('subject', options.subject);
-      }
-      if (options.topic) {
-        formData.append('topic', options.topic);
-      }
-      return formData;
-    };
-
-    // Make the request with FormData builder function
     return this.request('/api/upload/explain/', {
       method: 'POST',
       headers: {}, // Let browser set Content-Type for FormData
-      body: buildFormData(), // Call function to create fresh FormData
-      _buildFormData: buildFormData, // Pass function to rebuild FormData if retry needed
+      body: formData,
     });
   }
 
@@ -234,10 +155,9 @@ class APIService {
     });
   }
 
-  async logout(refreshToken) {
+  async logout() {
     return this.request('/api/auth/logout/', {
       method: 'POST',
-      body: JSON.stringify({ refresh: refreshToken }),
     });
   }
 
