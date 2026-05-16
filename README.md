@@ -20,7 +20,7 @@ This repository is now set up for a simple local demonstration using:
    - `QDRANT_API_KEY`
    - `QDRANT_COLLECTION`
 3. Make sure the target Qdrant collection already contains your ingested course material.
-4. The active frontend lives in `ai-teaching-frontend/` and is the one used by Docker and CI.
+4. The active frontend lives in `JUSTutor_frontend/` and is the one used by Docker and CI.
 
 ## Run locally with Docker
 
