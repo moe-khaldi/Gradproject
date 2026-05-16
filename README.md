@@ -13,13 +13,14 @@ This repository is now set up for a simple local demonstration using:
 
 ## Before you run
 
-1. Copy [Backend/django_api/.env.example](/c:/Users/xxmoh/OneDrive%20-%20just.edu.jo/Desktop/walla/Backend/django_api/.env.example:1) to `Backend/django_api/.env`.
+1. Make sure `Backend/django_api/.env` exists.
 2. Fill in at least these variables:
    - `OPENAI_API_KEY`
    - `QDRANT_URL`
    - `QDRANT_API_KEY`
    - `QDRANT_COLLECTION`
 3. Make sure the target Qdrant collection already contains your ingested course material.
+4. The active frontend lives in `ai-teaching-frontend/` and is the one used by Docker and CI.
 
 ## Run locally with Docker
 
