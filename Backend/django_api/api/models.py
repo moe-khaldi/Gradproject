@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 
 class User(AbstractUser):
     email = models.EmailField(unique=True)
@@ -16,13 +17,28 @@ class User(AbstractUser):
         return self.email
 
 class Material(models.Model):
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='materials', null=True, blank=True)
     title = models.CharField(max_length=200)
     courseCode = models.CharField(max_length=50)
     type = models.CharField(max_length=50)
-    url = models.URLField()
+    url = models.URLField(blank=True, null=True)
+    file = models.FileField(upload_to='materials/%Y/%m/%d/', blank=True, null=True)
+    original_name = models.CharField(max_length=255, blank=True)
+    file_size = models.BigIntegerField(default=0)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        if not self.url and not self.file:
+            raise ValidationError('Either a URL or an uploaded file is required.')
+
+    def delete(self, *args, **kwargs):
+        stored_file = self.file
+        super().delete(*args, **kwargs)
+        if stored_file:
+            stored_file.delete(save=False)
 
 class ChatSession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_sessions')

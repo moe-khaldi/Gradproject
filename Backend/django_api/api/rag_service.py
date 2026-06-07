@@ -17,14 +17,14 @@ def _resolve_rag_directory() -> Path:
 
     candidates = []
     for parent in current_file.parents:
-        candidates.append(parent / "RAG_cLAUDE1")
+        candidates.append(parent / "RAG_sys")
 
     for candidate in candidates:
         if (candidate / "rag.py").exists():
             return candidate
 
     raise ImproperlyConfigured(
-        "RAG_cLAUDE1 directory could not be found. "
+        "RAG_sys directory could not be found. "
         "Mount or copy it into the backend runtime before starting Django."
     )
 
@@ -220,6 +220,45 @@ class RAGService:
         answer = self._get_llm().invoke(prompt).content
         return {"answer": answer, "references": []}
 
+    def generate_flashcards(self, subject: str, topic: str, num_cards: int) -> list[dict]:
+        retrieved_context, references = self._retrieve_context(f"{subject} {topic} flashcards")
+        prompt = f"""You are an AI flashcard generator for university students.
+
+Create {num_cards} high-quality flashcards for the following subject and topic.
+
+Subject: {subject}
+Topic: {topic}
+
+Use the retrieved course material when it is available. If the context is sparse, still create accurate study cards from the topic.
+
+Retrieved context:
+{retrieved_context}
+
+Return valid JSON only in this exact structure:
+[
+  {{
+    "front": "Question or concept prompt",
+    "back": "Clear answer or explanation",
+    "hint": "Optional short hint"
+  }}
+]
+
+Rules:
+- Generate exactly {num_cards} cards.
+- Keep fronts short and focused.
+- Keep backs concise but educational.
+- Do not include markdown fences.
+- Do not include any text before or after the JSON."""
+
+        response_text = self._get_llm().invoke(prompt).content.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```", 2)[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:].strip()
+
+        cards = json.loads(response_text)
+        return cards
+
     def generate_quiz(
         self,
         subject: str,
@@ -262,6 +301,96 @@ Rules:
                 response_text = response_text[4:].strip()
 
         return json.loads(response_text)
+
+    def generate_study_plan(
+        self,
+        subject: str,
+        topics: list[str],
+        exam_date: str,
+        daily_hours: int,
+    ) -> dict:
+        """
+        Generate a study plan for the given subject and list of topics.
+        Returns a JSON-serializable dict containing plan metadata and day-level schedule entries.
+        """
+        topics_text = "\n".join(f"- {t}" for t in (topics or []))
+        retrieved_context, references = self._retrieve_context(f"{subject} {' '.join(topics or [])} study plan")
+
+        prompt = f"""You are an AI study planner for university students.
+
+Create a personalized study plan given the information below.
+
+Subject: {subject}
+Topics:
+{topics_text or 'General'}
+Exam date: {exam_date or 'Not provided'}
+Daily study hours: {daily_hours}
+
+Use the retrieved course material when it is available. If the context is sparse, still produce a reasonable study schedule.
+
+Retrieved context:
+{retrieved_context}
+
+Return valid JSON only in this exact structure:
+{{
+  "subject": "...",
+  "exam_date": "YYYY-MM-DD or empty",
+  "daily_hours": number,
+  "total_days": number,
+  "summary": "Short study plan overview",
+  "days": [
+    {{
+      "day": number,
+      "date": "YYYY-MM-DD",
+      "type": "learn|review|practice|rest",
+      "focus_topic": "Main focus for the day",
+      "hours": number,
+      "tasks": ["task 1", "task 2"],
+      "tip": "Optional study tip"
+    }}
+  ],
+  "notes": "Optional plain-text notes for the student"
+}}
+
+Rules:
+- Create a realistic day-by-day schedule that covers all listed topics before the exam.
+- Use exactly the JSON structure shown above.
+- If exam date is not provided, create a default 2-week plan.
+- Do not include any text before or after the JSON. Do not wrap the JSON in markdown fences.
+"""
+
+        response_text = self._get_llm().invoke(prompt).content.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```", 2)[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:].strip()
+
+        try:
+            plan = json.loads(response_text)
+        except Exception:
+            # If parsing fails, return a fallback structure with the raw text for debugging
+            return {
+                "subject": subject,
+                "exam_date": exam_date,
+                "daily_hours": daily_hours,
+                "total_days": 0,
+                "summary": '',
+                "days": [],
+                "notes": 'Failed to parse LLM response as JSON.',
+                "raw": response_text,
+                "references": references,
+            }
+
+        if isinstance(plan, dict):
+            if 'days' not in plan and 'schedule' in plan:
+                plan['days'] = plan['schedule']
+            if 'total_days' not in plan:
+                plan['total_days'] = len(plan.get('days', []))
+            plan.setdefault('summary', plan.get('notes', ''))
+            plan.setdefault('notes', '')
+            plan.setdefault('references', references)
+
+        return plan
 
     def _get_llm(self) -> ChatOpenAI:
         return ChatOpenAI(

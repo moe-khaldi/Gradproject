@@ -160,7 +160,7 @@ export default {
     subtitle:   'Upload and explore your study materials',
     upload:     'Upload File',
     dropzone:   'Drop a file here, or click to browse',
-    dropzoneSub:'Supports TXT, PDF, and code files up to 1 MB',
+    dropzoneSub:'Supports TXT, PDF, and code files up to 10 MB',
     noMaterials:'No materials yet',
     noMatSub:   'Upload your first resource to get started',
     explain:    'Explain',

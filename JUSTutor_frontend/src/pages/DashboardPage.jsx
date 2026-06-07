@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [results,    setResults]    = useState([]);
   const [apiStats,   setApiStats]   = useState(null);
   const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
 
   useEffect(() => {
     if (isGuest) {
@@ -90,9 +91,12 @@ export default function DashboardPage() {
         setResults(api_.length ? api_ : normaliseResults(getLocalResults()));
       } else {
         setResults(normaliseResults(getLocalResults()));
+        setError(historyResult.reason?.message || 'Failed to load quiz history.');
       }
       if (statsResult.status === 'fulfilled') {
         setApiStats(statsResult.value);
+      } else {
+        setError(statsResult.reason?.message || 'Failed to load dashboard stats.');
       }
     }).finally(() => setLoading(false));
   }, [isGuest]);
@@ -124,6 +128,18 @@ export default function DashboardPage() {
     return { avg, total: results.length, best: sorted[0]?.topic, weak: sorted[sorted.length - 1]?.topic, topicData, lineData, streak };
   }, [results]);
 
+  const hasHistory = results.length > 0;
+  const safeApiStats = apiStats && typeof apiStats === 'object' ? apiStats : null;
+  const displayStats = {
+    avg: stats?.avg ?? safeApiStats?.avg ?? 0,
+    total: stats?.total ?? 0,
+    best: stats?.best ?? '—',
+    weak: stats?.weak ?? '—',
+    topicData: stats?.topicData ?? [],
+    lineData: stats?.lineData ?? [],
+    streak: stats?.streak ?? 0,
+  };
+
   const displayName = user
     ? (user.first_name ? user.first_name : user.username)
     : 'Guest';
@@ -153,14 +169,14 @@ export default function DashboardPage() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t.dashboard.subtitle}</p>
             </div>
 
-            {stats && (
+            {hasHistory && (
               <div
                 className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
                 style={{ background: `${COLOR}10`, border: `1px solid ${COLOR}20` }}
               >
                 <Flame size={18} style={{ color: COLOR }} />
                 <div>
-                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{stats.streak} quizzes</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{displayStats.streak} quizzes</div>
                   <div className="text-xs text-slate-400">recent activity</div>
                 </div>
               </div>
@@ -175,6 +191,12 @@ export default function DashboardPage() {
           {loading ? (
             <div className="flex items-center justify-center py-32">
               <Loader2 size={28} style={{ color: COLOR }} className="animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-300 bg-red-50 p-6 text-center text-red-700">
+              <p className="font-semibold">Unable to load dashboard data</p>
+              <p className="text-sm mt-2">{error}</p>
+              <p className="text-xs text-slate-500 mt-3">If this is an API error, verify that `/api/dashboard/stats/` is available and the backend has been restarted after your latest code changes.</p>
             </div>
           ) : !stats && !apiStats ? (
             /* Empty state */
@@ -197,20 +219,20 @@ export default function DashboardPage() {
                 <StatCard
                   icon={BookOpen}
                   label={t.dashboard.totalQuizzes}
-                  value={apiStats?.total_quizzes ?? stats.total}
+                  value={apiStats?.total_quizzes ?? displayStats.total}
                   color="#6366f1"
                 />
                 <StatCard
                   icon={Target}
                   label={t.dashboard.avgScore}
-                  value={`${stats.avg}%`}
-                  color={stats.avg >= 80 ? '#10b981' : stats.avg >= 60 ? '#f59e0b' : COLOR}
-                  sub={stats.avg >= 80 ? 'Excellent' : stats.avg >= 60 ? 'Good progress' : 'Keep practicing'}
+                  value={`${displayStats.avg}%`}
+                  color={displayStats.avg >= 80 ? '#10b981' : displayStats.avg >= 60 ? '#f59e0b' : COLOR}
+                  sub={displayStats.avg >= 80 ? 'Excellent' : displayStats.avg >= 60 ? 'Good progress' : 'Keep practicing'}
                 />
                 <StatCard
                   icon={Trophy}
                   label={t.dashboard.bestTopic}
-                  value={stats.best || '—'}
+                  value={displayStats.best || '—'}
                   color="#f59e0b"
                 />
                 <StatCard
@@ -229,7 +251,7 @@ export default function DashboardPage() {
                 <StatCard
                   icon={TrendingUp}
                   label={t.dashboard.weakTopic}
-                  value={stats.weak || '—'}
+                  value={displayStats.weak || '—'}
                   color="#f87171"
                 />
               </div>
@@ -246,7 +268,7 @@ export default function DashboardPage() {
                     <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">{t.dashboard.recentChart}</h2>
                   </div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <AreaChart data={stats.lineData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                    <AreaChart data={displayStats.lineData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                       <defs>
                         <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={COLOR} stopOpacity={0.3} />
@@ -273,12 +295,12 @@ export default function DashboardPage() {
                     <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">{t.dashboard.topicChart}</h2>
                   </div>
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={stats.topicData} margin={{ top: 5, right: 5, left: -25, bottom: 25 }}>
+                    <BarChart data={displayStats.topicData} margin={{ top: 5, right: 5, left: -25, bottom: 25 }}>
                       <XAxis dataKey="topic" tick={{ fontSize: 10, fill: '#3a4660' }} axisLine={false} tickLine={false} angle={-30} textAnchor="end" />
                       <YAxis domain={[0,100]} tick={{ fontSize: 10, fill: '#3a4660' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<ChartTip />} />
                       <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                        {stats.topicData.map((e, i) => (
+                        {displayStats.topicData.map((e, i) => (
                           <Cell key={i} fill={e.score >= 80 ? '#10b981' : e.score >= 60 ? '#6366f1' : '#f59e0b'} />
                         ))}
                       </Bar>
@@ -300,7 +322,7 @@ export default function DashboardPage() {
                   <h2 className="font-semibold text-sm text-slate-900 dark:text-slate-100">{t.dashboard.recentSessions}</h2>
                 </div>
                 <div>
-                  {results.slice(0, 8).map((r, i) => {
+                  {results.length > 0 ? results.slice(0, 8).map((r, i) => {
                     const score = Math.round(r.score);
                     const c = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : COLOR;
                     return (
@@ -333,7 +355,9 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     );
-                  })}
+                  }) : (
+                    <div className="px-5 py-8 text-center text-slate-500">No quiz sessions or history available yet.</div>
+                  )}
                 </div>
               </div>
             </>

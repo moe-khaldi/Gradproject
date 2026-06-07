@@ -8,7 +8,7 @@ services:
       - "8000:8000"
     volumes:
       - ./Backend/django_api:/app
-      - ./RAG_cLAUDE1:/app/RAG_cLAUDE1
+      - ./RAG_sys:/app/RAG_sys
       - backend_db:/app/data
 
   frontend:

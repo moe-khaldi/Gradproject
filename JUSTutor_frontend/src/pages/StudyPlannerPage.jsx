@@ -256,7 +256,9 @@ function PlanView({ plan, onNew, t }) {
           <div>
             <h2 className="text-xl font-bold text-slate-100">{t.planner.planReady}</h2>
             <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: '#4a5878' }}>
-              <span className="flex items-center gap-1"><CalendarDays size={13} /> {plan.total_days} {t.planner.days}</span>
+              <span className="flex items-center gap-1">
+                <CalendarDays size={13} /> {plan.total_days ?? (plan.days || plan.schedule || []).length} {t.planner.days}
+              </span>
             </div>
           </div>
           <button
@@ -272,13 +274,13 @@ function PlanView({ plan, onNew, t }) {
         </div>
 
         {/* Summary card */}
-        {plan.summary && (
+        {(plan.summary || plan.notes) && (
           <div
             className="rounded-2xl px-5 py-4 text-sm leading-relaxed"
             style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', color: '#8896b3' }}
           >
             <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#f59e0b' }}>{t.planner.summary}</p>
-            {plan.summary}
+            {plan.summary || plan.notes}
           </div>
         )}
 
@@ -301,7 +303,7 @@ function PlanView({ plan, onNew, t }) {
 
         {/* Day cards */}
         <div className="space-y-3">
-          {(plan.days || []).map((day, i) => (
+          {(plan.days || plan.schedule || []).map((day, i) => (
             <DayCard key={i} day={day} t={t} />
           ))}
         </div>
