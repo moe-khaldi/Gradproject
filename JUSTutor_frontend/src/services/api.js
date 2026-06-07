@@ -5,6 +5,25 @@ class APIService {
     this.baseURL = API_BASE;
   }
 
+  async _readResponseBody(response) {
+    const contentType = response.headers.get('content-type') || '';
+    const rawBody = await response.text();
+
+    if (contentType.includes('application/json')) {
+      try {
+        return JSON.parse(rawBody);
+      } catch {
+        return rawBody;
+      }
+    }
+
+    try {
+      return JSON.parse(rawBody);
+    } catch {
+      return rawBody;
+    }
+  }
+
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const token = localStorage.getItem('access_token');
@@ -42,16 +61,20 @@ class APIService {
       if (!response.ok) {
         let errMsg = `HTTP ${response.status}`;
         try {
-          const errData = await response.json();
-          errMsg = errData.error || errData.detail || errData.message || errMsg;
+          const errData = await this._readResponseBody(response);
+          if (errData && typeof errData === 'object') {
+            errMsg = errData.error || errData.detail || errData.message || errMsg;
+          } else if (typeof errData === 'string' && errData.trim()) {
+            errMsg = errData;
+          }
         } catch {
-          errMsg = await response.text() || errMsg;
+          // Keep default HTTP status message when the body is not readable.
         }
         throw new Error(errMsg);
       }
 
       if (response.status === 204) return null;
-      return await response.json();
+      return await this._readResponseBody(response);
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -68,7 +91,7 @@ class APIService {
         body: JSON.stringify({ refresh: refreshToken }),
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = await this._readResponseBody(response);
         localStorage.setItem('access_token', data.access);
         return true;
       }

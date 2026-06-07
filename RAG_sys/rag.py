@@ -212,6 +212,24 @@ def _make_qdrant_client(cfg: RAGConfig) -> QdrantClient:
     return QdrantClient(location=cfg.qdrant_location)
 
 
+def _resolve_vector_name(client: QdrantClient, collection_name: str, default: str = "dense") -> str:
+    """
+    Match the vector naming scheme used by an existing Qdrant collection.
+
+    Older collections in this project were created with an unnamed dense vector,
+    while newer runs may use the named vector `dense`.
+    """
+    try:
+        collection = client.get_collection(collection_name=collection_name)
+    except Exception:
+        return default
+
+    vectors = collection.config.params.vectors
+    if isinstance(vectors, dict):
+        return default if default in vectors else (next(iter(vectors)) if vectors else default)
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Core RAG pipeline
 # ---------------------------------------------------------------------------
@@ -313,6 +331,7 @@ class RAGPipeline:
         cfg = self.config
         embeddings = OpenAIEmbeddings(model=cfg.embedding_model)
         client = _make_qdrant_client(cfg)
+        vector_name = _resolve_vector_name(client, cfg.qdrant_collection)
 
         try:
             client.get_collection(collection_name=cfg.qdrant_collection)
@@ -326,6 +345,7 @@ class RAGPipeline:
                     )
                 },
             )
+            vector_name = "dense"
 
         print(f"Loading documents from: {self.source.description()}")
         docs = self.source.load()
@@ -348,7 +368,7 @@ class RAGPipeline:
             url=cfg.qdrant_url,
             api_key=cfg.qdrant_api_key,
             collection_name=cfg.qdrant_collection,
-            vector_name="dense",
+            vector_name=vector_name,
         )
 
         self._retriever = self._vectorstore.as_retriever(
@@ -369,6 +389,7 @@ class RAGPipeline:
         cfg = self.config
         embeddings = OpenAIEmbeddings(model=cfg.embedding_model)
         client = _make_qdrant_client(cfg)
+        vector_name = _resolve_vector_name(client, cfg.qdrant_collection)
 
         print(f"Connecting to existing Qdrant collection '{cfg.qdrant_collection}' ...")
         self._vectorstore = QdrantVectorStore.from_existing_collection(
@@ -376,7 +397,7 @@ class RAGPipeline:
             url=cfg.qdrant_url,
             api_key=cfg.qdrant_api_key,
             collection_name=cfg.qdrant_collection,
-            vector_name="dense",
+            vector_name=vector_name,
         )
         self._retriever = self._vectorstore.as_retriever(
             search_kwargs={"k": cfg.top_k}

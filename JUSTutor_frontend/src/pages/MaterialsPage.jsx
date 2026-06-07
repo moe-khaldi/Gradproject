@@ -157,6 +157,7 @@ export default function MaterialsPage() {
   const [error,       setError]       = useState('');
   const [drag,        setDrag]        = useState(false);
   const [subject,     setSubject]     = useState(SUBJECTS[0]);
+  const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
   useEffect(() => {
     if (isGuest) { setLoading(false); return; }
@@ -168,7 +169,7 @@ export default function MaterialsPage() {
 
   const handleFile = async (file) => {
     if (!file) return;
-    if (file.size > 1024 * 1024) { setError('File too large (max 1 MB)'); return; }
+    if (file.size > MAX_UPLOAD_BYTES) { setError('File too large (max 10 MB)'); return; }
     setUploading(true);
     setError('');
     try {

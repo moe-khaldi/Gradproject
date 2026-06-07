@@ -6,9 +6,34 @@ from .models import Material, ChatSession, ChatMessage, Quiz, QuizSubmission
 User = get_user_model()
 
 class MaterialSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+
     class Meta:
         model = Material
-        fields = ['id', 'title', 'courseCode', 'type', 'url']
+        fields = [
+            'id',
+            'owner',
+            'title',
+            'courseCode',
+            'type',
+            'url',
+            'file_url',
+            'filename',
+            'file_size',
+            'uploaded_at',
+        ]
+        read_only_fields = ['id', 'owner', 'file_url', 'filename', 'file_size', 'uploaded_at']
+
+    def get_file_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            url = obj.file.url
+            return request.build_absolute_uri(url) if request else url
+        return None
+
+    def get_filename(self, obj):
+        return obj.original_name or (obj.file.name.rsplit('/', 1)[-1] if obj.file else None)
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

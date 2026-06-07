@@ -15,6 +15,11 @@ from .views import (
     TextExplainView,
     ChatSessionListView,
     ChatSessionDetailView,
+    GPAAdviceView,
+    DashboardStatsView,
+    QuizHistoryView,
+    FlashcardGenerateView,
+    StudyPlanGenerateView,
 )
 
 urlpatterns = [
@@ -38,8 +43,21 @@ urlpatterns = [
     # Quiz endpoints
     path('quiz/generate/', QuizGenerateView.as_view(), name='quiz-generate'),
     path('quiz/submit/', QuizSubmitView.as_view(), name='quiz-submit'),
+    path('quiz/history/', QuizHistoryView.as_view(), name='quiz-history'),
 
     # Explain endpoints
     path('upload/explain/', FileExplainView.as_view(), name='file-explain'),
     path('explain/', TextExplainView.as_view(), name='text-explain'),
+
+    # GPA endpoint
+    path('gpa/advice/', GPAAdviceView.as_view(), name='gpa-advice'),
+
+    # Dashboard endpoint
+    path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+
+    # Flashcards endpoint
+    path('flashcards/', FlashcardGenerateView.as_view(), name='flashcards-generate'),
+
+    # Study Planner endpoint
+    path('planner/', StudyPlanGenerateView.as_view(), name='planner-generate'),
 ]
