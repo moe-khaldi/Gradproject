@@ -370,6 +370,24 @@ class TextExplainView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# Code Debugging View
+class DebugCodeView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        try:
+            code = request.data.get('code', '')
+            language = request.data.get('language', 'python')
+
+            if not code.strip():
+                return Response({'error': 'Code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+            result = get_rag_service().analyze_code(code=code, language=language)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # Chat Sessions Management
 class ChatSessionListView(generics.ListCreateAPIView):
     serializer_class = ChatSessionSerializer

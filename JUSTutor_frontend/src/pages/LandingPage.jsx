@@ -308,7 +308,7 @@ export default function LandingPage() {
             className="animate-slide-up"
             style={{ fontSize: 17, lineHeight: 1.7, color: '#3d4d6a', marginBottom: 36, maxWidth: 400 }}
           >
-            Your AI tutor grounded in your <strong style={{ color: '#6b7a99' }}>actual OOP course material</strong>.
+            Your AI tutor grounded in your <strong style={{ color: '#6b7a99' }}>actual JUST course material</strong>.
             Ask questions, generate quizzes, build flashcards, and get a personalised study schedule — all in one place.
           </p>
 

@@ -13,6 +13,7 @@ from .views import (
     QuizSubmitView,
     FileExplainView,
     TextExplainView,
+    DebugCodeView,
     ChatSessionListView,
     ChatSessionDetailView,
     GPAAdviceView,
@@ -48,6 +49,7 @@ urlpatterns = [
     # Explain endpoints
     path('upload/explain/', FileExplainView.as_view(), name='file-explain'),
     path('explain/', TextExplainView.as_view(), name='text-explain'),
+    path('debug/code/', DebugCodeView.as_view(), name='debug-code'),
 
     # GPA endpoint
     path('gpa/advice/', GPAAdviceView.as_view(), name='gpa-advice'),

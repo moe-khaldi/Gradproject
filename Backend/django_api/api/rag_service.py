@@ -203,6 +203,78 @@ class RAGService:
             history=history,
         )
 
+    def analyze_code(self, code: str, language: str) -> dict:
+        prompt = f"""You are an expert {language} code reviewer and debugger.
+
+Analyze the code below and return valid JSON only with this exact structure:
+{{
+  "errors": ["error 1", "error 2"],
+  "output": "What the code prints or returns, or 'No output.'",
+  "explanation": "Short but clear explanation of the bug(s) and behavior.",
+  "fixed_code": "Complete corrected code in a plain string. If no fix is needed, repeat the original code."
+}}
+
+Rules:
+- If there are no errors, return an empty errors array.
+- If the code does not produce output, set output to "No output."
+- Do not wrap the JSON in markdown fences.
+- Do not include any text before or after the JSON.
+
+Code:
+```{language.lower()}
+{code}
+```"""
+
+        response_text = self._get_llm().invoke(prompt).content.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```", 2)[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:].strip()
+
+        try:
+            payload = json.loads(response_text)
+            if not isinstance(payload, dict):
+                raise ValueError("Debug response must be a JSON object.")
+        except Exception:
+            payload = {
+                "errors": [],
+                "output": "No output.",
+                "explanation": response_text,
+                "fixed_code": code,
+            }
+
+        errors = payload.get("errors", [])
+        if isinstance(errors, str):
+            errors = [errors] if errors.strip() else []
+        elif not isinstance(errors, list):
+            errors = []
+
+        output = payload.get("output") or "No output."
+        explanation = payload.get("explanation") or ""
+        fixed_code = payload.get("fixed_code") or code
+
+        markdown_response = [
+            "## Errors Found",
+            "\n".join(f"{idx + 1}. {item}" for idx, item in enumerate(errors)) if errors else "No errors found - the code is correct.",
+            "",
+            "## Output",
+            output,
+            "",
+            "## Explanation",
+            explanation or "No explanation available.",
+            "",
+            "## Fixed Version",
+            f"```{language.lower()}\n{fixed_code}\n```",
+        ]
+
+        return {
+            "errors": errors,
+            "output": output,
+            "explanation": explanation,
+            "fixed_code": fixed_code,
+            "response": "\n".join(markdown_response).strip(),
+        }
+
     def explain_text(self, content: str, subject: str, topic: str) -> dict:
         prompt = (
             "You are an AI teaching assistant for university students.\n"

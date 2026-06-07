@@ -74,7 +74,7 @@ export default function DebugPage() {
   const { t } = useLanguage();
 
   const [code,      setCode]      = useState('');
-  const [lang,      setLang]      = useState('Python');
+  const [lang,      setLang]      = useState('C++');
   const [analyzing, setAnalyzing] = useState(false);
   const [result,    setResult]    = useState(null);
   const [apiError,  setApiError]  = useState('');
@@ -117,8 +117,17 @@ ${code}
 \`\`\``;
 
     try {
-      const res = await api.sendMessage(prompt, 'Programming', { actionType: 'debug' });
-      setResult(parseDebugResponse(res.response || ''));
+      const res = await api.debugCode(code, lang);
+      if (res && (res.errors || res.output || res.explanation || res.fixed_code)) {
+        setResult({
+          errors: Array.isArray(res.errors) ? res.errors : [],
+          output: res.output || '',
+          explanation: res.explanation || '',
+          fixedCode: res.fixed_code || '',
+        });
+      } else {
+        setResult(parseDebugResponse(res.response || ''));
+      }
     } catch (err) {
       setApiError(err.message || t.common.error);
     } finally {
