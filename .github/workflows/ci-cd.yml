@@ -24,7 +24,8 @@ jobs:
       - name: Build & push BACKEND image
         uses: docker/build-push-action@v6
         with:
-          context: ./Backend/django_api
+          context: .
+          file: ./Backend/django_api/Dockerfile
           push: true
           tags: |
             awnlyone/gradproject-backend:latest
