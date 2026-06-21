@@ -201,9 +201,9 @@ function ExamTaker({ quiz, cfg, onSubmit, t }) {
       <div
         className="sticky top-0 z-10 mb-6 rounded-xl p-4 transition-all"
         style={{
-          background: danger ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)',
+          background: danger ? 'rgba(30,5,5,0.95)' : 'rgba(3,4,11,0.95)',
           border: `1px solid ${danger ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.08)'}`,
-          backdropFilter: 'blur(12px)',
+          
         }}
       >
         <div className="flex items-center justify-between mb-2">
