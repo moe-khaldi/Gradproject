@@ -9,7 +9,7 @@ COPY Backend/django_api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p /app/data /app/media
+RUN mkdir -p /app/Backend/django_api/data /app/Backend/django_api/media
 
 WORKDIR /app/Backend/django_api
 
