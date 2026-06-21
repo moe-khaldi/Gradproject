@@ -518,7 +518,7 @@ export default function ExamPage() {
   const reset = () => { setPhase('setup'); setQuiz(null); setResult(null); setTimeTaken(null); };
 
   return (
-    <div className="min-h-full px-4 py-8">
+    <div className="min-h-full px-4 py-8 bg-[#03040b]" style={{ background: '#03040b' }}>
       {phase === 'setup' && <ExamSetup onStart={handleStart} loading={loading} t={t} />}
       {phase === 'taking' && quiz && <ExamTaker quiz={quiz} cfg={cfg} onSubmit={handleSubmit} t={t} />}
       {phase === 'results' && quiz && result && <ExamResults quiz={quiz} result={result} timeTaken={timeTaken} onReset={reset} t={t} />}
