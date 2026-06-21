@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN mkdir -p /app/data /app/media
 
+WORKDIR /app/Backend/django_api
+
 EXPOSE 8000
 
 CMD ["sh", "-c", "python manage.py runserver 0.0.0.0:${PORT:-8000}"]
