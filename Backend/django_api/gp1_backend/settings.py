@@ -55,6 +55,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://gradproject-ecru.vercel.app",
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://gradproject-t25i.onrender.com",
+    "https://gradproject-ecru.vercel.app",
+]
+
 
 # Application definition
 
